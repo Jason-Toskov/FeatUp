@@ -167,7 +167,7 @@ def my_app(cfg: DictConfig) -> None:
 
     for img_num, batch in enumerate(loader):
         original_image = batch["img"].cuda()
-        output_location = join(feat_dir, "/".join(batch["img_path"][0].split("/")[-1:]).replace(".rgb", ".pth"))
+        output_location = join(feat_dir, "/".join(batch["img_path"][0].split("/")[-1:]).replace(".png", ".pth"))
 
         os.makedirs(dirname(output_location), exist_ok=True)
         if not redo and os.path.exists(output_location) and not cfg.dataset == "sample":
@@ -197,6 +197,7 @@ def my_app(cfg: DictConfig) -> None:
 
             unprojector = PCAUnprojector(jit_features[:cfg.pca_batch], cfg.proj_dim, lr_feats.device,
                                          use_torch_pca=True)
+            jit_feats_original = torch.clone(jit_features)
             jit_features = unprojector.project(jit_features)
             lr_feats = unprojector.project(lr_feats)
 
@@ -248,14 +249,17 @@ def my_app(cfg: DictConfig) -> None:
                 loss = 0.0
 
                 target = []
+                target_original = []
                 hr_feats_transformed = []
                 for j in range(inner_batch):
                     idx = torch.randint(cfg.n_images, size=())
                     target.append(jit_features[idx].unsqueeze(0))
+                    target_original.append(jit_feats_original[idx].unsqueeze(0))
                     selected_tp = {k: v[idx] for k, v in transform_params.items()}
                     hr_feats_transformed.append(apply_jitter(hr_both, cfg.max_pad, selected_tp))
 
                 target = torch.cat(target, dim=0).cuda(non_blocking=True)
+                target_original = torch.cat(target_original, dim=0)
                 hr_feats_transformed = torch.cat(hr_feats_transformed, dim=0)
 
                 output_both = downsampler(hr_feats_transformed, None)
@@ -294,6 +298,8 @@ def my_app(cfg: DictConfig) -> None:
                     writer.add_scalar("mean_mae", mean_mae, step)
                     writer.add_scalar("rec loss", rec_loss, step)
                     writer.add_scalar("mean scale", scales.mean(), step)
+                    writer.add_scalar("rec error", (output - target).square().mean(), step)
+                    writer.add_scalar("rec full rank error", (unprojector(output).cpu() - target_original).square().mean(), step)
 
                     if cfg.mag_weight > 0.0:
                         writer.add_scalar("mag loss", mag_loss, step)
