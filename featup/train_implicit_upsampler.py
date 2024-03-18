@@ -2,30 +2,31 @@ import math
 import os
 from collections import defaultdict
 from datetime import datetime
-from os.path import join, dirname
+from os.path import dirname, join
 
 import hydra
 import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
-from PIL import Image
+from featup.datasets.JitteredImage import JitteredImage, apply_jitter
+from featup.datasets.util import SlicedDataset, get_dataset
+from featup.downsamplers import AttentionDownsampler, SimpleDownsampler
+from featup.featurizers.util import get_featurizer
+from featup.layers import ChannelNorm, ImplicitFeaturizer, MinMaxScaler
+from featup.losses import total_variation
+from featup.util import PCAUnprojector, generate_subset, midas_norm, midas_unnorm
+from featup.util import norm as reg_norm
+from featup.util import pca, prep_image
+from featup.util import unnorm as reg_unorm
 from kornia.filters import gaussian_blur2d
 from omegaconf import DictConfig, OmegaConf
+from PIL import Image
 from pytorch_lightning import seed_everything
 from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 from torchmetrics.functional.regression import explained_variance
 from tqdm import tqdm
-
-from featup.datasets.JitteredImage import JitteredImage, apply_jitter
-from featup.datasets.util import get_dataset, SlicedDataset
-from featup.downsamplers import SimpleDownsampler, AttentionDownsampler
-from featup.featurizers.util import get_featurizer
-from featup.layers import ImplicitFeaturizer, MinMaxScaler, ChannelNorm
-from featup.losses import total_variation
-from featup.util import (norm as reg_norm, unnorm as reg_unorm, generate_subset,
-                         midas_norm, midas_unnorm, pca, PCAUnprojector, prep_image)
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -166,7 +167,7 @@ def my_app(cfg: DictConfig) -> None:
 
     for img_num, batch in enumerate(loader):
         original_image = batch["img"].cuda()
-        output_location = join(feat_dir, "/".join(batch["img_path"][0].split("/")[-1:]).replace(".jpg", ".pth"))
+        output_location = join(feat_dir, "/".join(batch["img_path"][0].split("/")[-1:]).replace(".rgb", ".pth"))
 
         os.makedirs(dirname(output_location), exist_ok=True)
         if not redo and os.path.exists(output_location) and not cfg.dataset == "sample":
@@ -346,7 +347,7 @@ def my_app(cfg: DictConfig) -> None:
                         writer.add_image("feats/3/hr", red_hr_feats[0, 6:9], step)
 
                         np_arr = (red_lr_feats[0, :3].permute(1, 2, 0) * 255).clamp(0, 255).to(torch.uint8)
-                        Image.fromarray(np_arr.detach().cpu().numpy()).save("../sample-images/low_res_feats.png")
+                        Image.fromarray(np_arr.detach().cpu().numpy()).save("FeatUp/sample-images/low_res_feats.png")
 
                         writer.add_image("feats/1/lr", up(red_lr_feats[0, :3]), step)
                         writer.add_image("feats/2/lr", up(red_lr_feats[0, 3:6]), step)
@@ -394,7 +395,7 @@ def my_app(cfg: DictConfig) -> None:
             optim.step()
             optim.zero_grad()
 
-        torch.save({"model": upsampler, "unprojector": unprojector}, output_location)
+        torch.save({"model": upsampler, "downsampler": downsampler, "unprojector": unprojector}, output_location)
 
 
 if __name__ == "__main__":

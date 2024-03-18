@@ -1,8 +1,8 @@
-from torch.utils.data import Dataset
-from featup.datasets.ImageNetSubset import ImageNetSubset
 from featup.datasets.COCO import Coco
 from featup.datasets.DAVIS import DAVIS
+from featup.datasets.ImageNetSubset import ImageNetSubset
 from featup.datasets.SampleImage import SampleImage
+from torch.utils.data import Dataset
 
 
 class SlicedDataset(Dataset):
@@ -52,6 +52,13 @@ def get_dataset(dataroot, name, split, transform, target_transform, include_labe
         return SampleImage(
             paths=["../sample-images/bird_left.jpg",
                    "../sample-images/bird_right.jpg"],
+            transform=transform
+        )
+    elif name == "image_folder":
+        import os
+        from glob import glob
+        return SampleImage(
+            paths=glob(os.path.join(dataroot, "*")),
             transform=transform
         )
     else:

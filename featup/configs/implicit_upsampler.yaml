@@ -1,18 +1,18 @@
 # Environment Args
-output_root: '../../'
-pytorch_data_dir: '/pytorch-data'
+output_root: '/home/toskov/output/'
+pytorch_data_dir: '/home/toskov/replica_samples/'
 submitting_to_aml: false
 summarize: true
 experiment_name: "exp1"
 
 # Dataset args
-dataset: "sample"
+dataset: "image_folder"
 split: "val"
 partition: 0
 total_partitions: 1
 
 # Model Args
-model_type: "vit"
+model_type: "dinov2"
 activation_type: "token"
 
 # Upsampler args
